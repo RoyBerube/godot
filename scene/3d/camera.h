@@ -45,6 +45,7 @@ public:
 	enum Projection {
 
 		PROJECTION_PERSPECTIVE,
+		PROJECTION_PERSPECTIVE_SHIFT,
 		PROJECTION_ORTHOGONAL
 	};
 
@@ -71,6 +72,10 @@ private:
 	float v_offset;
 	float h_offset;
 	KeepAspect keep_aspect;
+
+	// Camera shift
+	float shift_rotation;
+	float shift_tilt;
 
 	RID camera;
 	RID scenario_id;
@@ -110,6 +115,7 @@ public:
 	};
 
 	void set_perspective(float p_fovy_degrees, float p_z_near, float p_z_far);
+	void set_perspective_shift(float p_fovy_degrees, float p_z_near, float p_z_far, float p_shift_rotation, float shift_tilt);
 	void set_orthogonal(float p_size, float p_z_near, float p_z_far);
 
 	void make_current();
@@ -154,6 +160,12 @@ public:
 	DopplerTracking get_doppler_tracking() const;
 
 	Vector3 get_doppler_tracked_velocity() const;
+
+	void set_shift_rotation(float p_rotation);
+	float get_shift_rotation() const;
+
+	void set_shift_tilt(float p_tilt);
+	float get_shift_tilt() const;
 
 	Camera();
 	~Camera();

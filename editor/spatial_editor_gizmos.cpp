@@ -1100,7 +1100,7 @@ AudioStreamPlayer3DSpatialGizmo::AudioStreamPlayer3DSpatialGizmo(AudioStreamPlay
 
 String CameraSpatialGizmo::get_handle_name(int p_idx) const {
 
-	if (camera->get_projection() == Camera::PROJECTION_PERSPECTIVE) {
+	if ((camera->get_projection() == Camera::PROJECTION_PERSPECTIVE) || (camera->get_projection() == Camera::PROJECTION_PERSPECTIVE_SHIFT)) {
 		return "FOV";
 	} else {
 		return "Size";
@@ -1108,7 +1108,7 @@ String CameraSpatialGizmo::get_handle_name(int p_idx) const {
 }
 Variant CameraSpatialGizmo::get_handle_value(int p_idx) const {
 
-	if (camera->get_projection() == Camera::PROJECTION_PERSPECTIVE) {
+	if ((camera->get_projection() == Camera::PROJECTION_PERSPECTIVE) || (camera->get_projection() == Camera::PROJECTION_PERSPECTIVE_SHIFT)) {
 		return camera->get_fov();
 	} else {
 
@@ -1126,7 +1126,7 @@ void CameraSpatialGizmo::set_handle(int p_idx, Camera *p_camera, const Point2 &p
 
 	Vector3 s[2] = { gi.xform(ray_from), gi.xform(ray_from + ray_dir * 4096) };
 
-	if (camera->get_projection() == Camera::PROJECTION_PERSPECTIVE) {
+	if ((camera->get_projection() == Camera::PROJECTION_PERSPECTIVE) || (camera->get_projection() == Camera::PROJECTION_PERSPECTIVE_SHIFT)) {
 		Transform gt = camera->get_global_transform();
 		float a = _find_closest_angle_to_half_pi_arc(s[0], s[1], 1.0, gt);
 		camera->set("fov", a);
@@ -1143,7 +1143,7 @@ void CameraSpatialGizmo::set_handle(int p_idx, Camera *p_camera, const Point2 &p
 }
 void CameraSpatialGizmo::commit_handle(int p_idx, const Variant &p_restore, bool p_cancel) {
 
-	if (camera->get_projection() == Camera::PROJECTION_PERSPECTIVE) {
+	if ((camera->get_projection() == Camera::PROJECTION_PERSPECTIVE) || (camera->get_projection() == Camera::PROJECTION_PERSPECTIVE_SHIFT)) {
 
 		if (p_cancel) {
 
@@ -1183,6 +1183,46 @@ void CameraSpatialGizmo::redraw() {
 	Ref<Material> icon = create_icon_material("camera_icon", SpatialEditor::get_singleton()->get_icon("GizmoCamera", "EditorIcons"));
 
 	switch (camera->get_projection()) {
+		case Camera::PROJECTION_PERSPECTIVE_SHIFT: {
+
+			real_t fov = Math::deg2rad(camera->get_fov());
+			real_t shift_rotation = Math::deg2rad(camera->get_shift_rotation());
+			real_t shift_tilt = Math::deg2rad(camera->get_shift_tilt());
+			real_t half_fovy_rad = fov * Math_PI / 360.0;
+			real_t vert_tilt = Math::cos(shift_rotation) * shift_tilt;
+			real_t horiz_tilt = Math::sin(shift_rotation) * shift_tilt;
+			// Law of sines.
+			real_t center_vertical = Math::sin(vert_tilt) * Math::cos(fov) / Math::sin((Math_PI / 2) - vert_tilt);
+			real_t center_horiz = Math::sin(horiz_tilt) * Math::cos(fov) / Math::sin((Math_PI / 2) - horiz_tilt);
+			real_t height = Math::sin(fov) * Math::cos(fov) / Math::sin((Math_PI / 2) - fov);
+			real_t dist = -Math::cos(fov);
+			// 4 corners is enough info to draw the gizmo. Ignore aspect ratio.
+			Vector3 up_right = Vector3(center_horiz + height, center_vertical + height, dist);
+			Vector3 up_left = Vector3(center_horiz - height, center_vertical + height, dist);
+			Vector3 down_right = Vector3(center_horiz + height, center_vertical - height, dist);
+			Vector3 down_left = Vector3(center_horiz - height, center_vertical - height, dist);
+
+#define ADD_TRIANGLE(m_a, m_b, m_c) \
+	{                               \
+		lines.push_back(m_a);       \
+		lines.push_back(m_b);       \
+		lines.push_back(m_b);       \
+		lines.push_back(m_c);       \
+		lines.push_back(m_c);       \
+		lines.push_back(m_a);       \
+	}
+			ADD_TRIANGLE(Vector3(), up_right, down_right);
+			ADD_TRIANGLE(Vector3(), down_right, down_left);
+			ADD_TRIANGLE(Vector3(), down_left, up_left);
+			ADD_TRIANGLE(Vector3(), up_left, up_right);
+
+			handles.push_back(up_right - Vector3(0, height, 0));
+			real_t tup_l_h = center_horiz + ((up_left.x - center_horiz) * 1 / 4);
+			real_t tup_r_h = center_horiz + ((up_right.x - center_horiz) * 1 / 4);
+			Vector3 tup(center_horiz, up_right.y + (height / 2), dist);
+			ADD_TRIANGLE(tup, Vector3(tup_r_h, up_right.y, dist), Vector3(tup_l_h, up_left.y, dist));
+
+		}break;
 
 		case Camera::PROJECTION_PERSPECTIVE: {
 

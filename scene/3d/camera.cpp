@@ -46,15 +46,16 @@ void Camera::_update_camera_mode() {
 	force_change = true;
 	switch (mode) {
 		case PROJECTION_PERSPECTIVE: {
-
 			set_perspective(fov, near, far);
-
 		} break;
 		case PROJECTION_ORTHOGONAL: {
 			set_orthogonal(size, near, far);
 		} break;
+		case PROJECTION_PERSPECTIVE_SHIFT: {
+			set_perspective_shift(fov, near, far, shift_rotation, shift_tilt);
+		} break;
 	}
-}
+}	
 
 bool Camera::_set(const StringName &p_name, const Variant &p_value) {
 
@@ -66,6 +67,8 @@ bool Camera::_set(const StringName &p_name, const Variant &p_value) {
 			mode = PROJECTION_PERSPECTIVE;
 		if (proj == PROJECTION_ORTHOGONAL)
 			mode = PROJECTION_ORTHOGONAL;
+		if (proj == PROJECTION_PERSPECTIVE_SHIFT)
+			mode = PROJECTION_PERSPECTIVE_SHIFT;
 
 		changed_all = true;
 	} else if (p_name == "fov" || p_name == "fovy" || p_name == "fovx")
@@ -96,6 +99,10 @@ bool Camera::_set(const StringName &p_name, const Variant &p_value) {
 		set_environment(p_value);
 	} else if (p_name == "doppler/tracking") {
 		set_doppler_tracking(DopplerTracking(int(p_value)));
+	} else if (p_name == "shift_rotation") {
+		set_shift_rotation(p_value);
+	} else if (p_name == "shift_tilt") {
+		set_shift_tilt(p_value);
 	} else
 		return false;
 
@@ -135,6 +142,10 @@ bool Camera::_get(const StringName &p_name, Variant &r_ret) const {
 		r_ret = get_environment();
 	} else if (p_name == "doppler/tracking") {
 		r_ret = get_doppler_tracking();
+	} else if (p_name == "shift_rotation") {
+		r_ret = get_shift_rotation();
+	} else if (p_name == "shift_tilt") {
+		r_ret = get_shift_tilt();
 	} else
 		return false;
 
@@ -143,7 +154,7 @@ bool Camera::_get(const StringName &p_name, Variant &r_ret) const {
 
 void Camera::_get_property_list(List<PropertyInfo> *p_list) const {
 
-	p_list->push_back(PropertyInfo(Variant::INT, "projection", PROPERTY_HINT_ENUM, "Perspective,Orthogonal"));
+	p_list->push_back(PropertyInfo(Variant::INT, "projection", PROPERTY_HINT_ENUM, "Perspective,Perspective Shift,Orthogonal"));
 
 	switch (mode) {
 
@@ -154,7 +165,18 @@ void Camera::_get_property_list(List<PropertyInfo> *p_list) const {
 				p_list->push_back(PropertyInfo(Variant::REAL, "fovx", PROPERTY_HINT_RANGE, "1,179,0.1", PROPERTY_USAGE_EDITOR));
 			else
 				p_list->push_back(PropertyInfo(Variant::REAL, "fovy", PROPERTY_HINT_RANGE, "1,179,0.1", PROPERTY_USAGE_EDITOR));
-
+		
+		} break;
+		case PROJECTION_PERSPECTIVE_SHIFT: {
+			
+			p_list->push_back(PropertyInfo(Variant::REAL, "fov", PROPERTY_HINT_RANGE, "1,179,0.1", PROPERTY_USAGE_NOEDITOR));
+			if (keep_aspect == KEEP_WIDTH)
+				p_list->push_back(PropertyInfo(Variant::REAL, "fovx", PROPERTY_HINT_RANGE, "1,179,0.1", PROPERTY_USAGE_EDITOR));
+			else
+				p_list->push_back(PropertyInfo(Variant::REAL, "fovy", PROPERTY_HINT_RANGE, "1,179,0.1", PROPERTY_USAGE_EDITOR));
+			p_list->push_back(PropertyInfo(Variant::REAL, "shift_rotation", PROPERTY_HINT_RANGE, "-360,360,0.1"));
+			p_list->push_back(PropertyInfo(Variant::REAL, "shift_tilt", PROPERTY_HINT_RANGE, "-60,60,0.1"));
+	
 		} break;
 		case PROJECTION_ORTHOGONAL: {
 
@@ -252,16 +274,31 @@ Transform Camera::get_camera_transform() const {
 }
 
 void Camera::set_perspective(float p_fovy_degrees, float p_z_near, float p_z_far) {
-
+	
 	if (!force_change && fov == p_fovy_degrees && p_z_near == near && p_z_far == far && mode == PROJECTION_PERSPECTIVE)
 		return;
-
 	fov = p_fovy_degrees;
 	near = p_z_near;
 	far = p_z_far;
 	mode = PROJECTION_PERSPECTIVE;
 
 	VisualServer::get_singleton()->camera_set_perspective(camera, fov, near, far);
+	update_gizmo();
+	force_change = false;
+		
+}
+
+void Camera::set_perspective_shift(float p_fovy_degrees, float p_z_near, float p_z_far, float p_shift_rotation, float p_shift_tilt) {
+	if (!force_change && fov == p_fovy_degrees && p_z_near == near && p_z_far == far && mode == PROJECTION_PERSPECTIVE_SHIFT
+			&& p_shift_rotation == shift_rotation && p_shift_tilt == shift_tilt)
+		return;
+
+	near = p_z_near;
+	far = p_z_far;
+	shift_rotation = p_shift_rotation;
+	shift_tilt = p_shift_tilt;
+	mode = PROJECTION_PERSPECTIVE_SHIFT;
+	VisualServer::get_singleton()->camera_set_perspective_shift(camera, fov, near, far, shift_rotation, shift_tilt);
 	update_gizmo();
 	force_change = false;
 }
@@ -368,7 +405,7 @@ Vector3 Camera::project_ray_origin(const Point2 &p_pos) const {
 	Vector2 cpos = get_viewport()->get_camera_coords(p_pos);
 	ERR_FAIL_COND_V(viewport_size.y == 0, Vector3());
 
-	if (mode == PROJECTION_PERSPECTIVE) {
+	if ((mode == PROJECTION_PERSPECTIVE) || (mode == PROJECTION_PERSPECTIVE_SHIFT)) {
 
 		return get_camera_transform().origin;
 	} else {
@@ -516,6 +553,22 @@ Camera::DopplerTracking Camera::get_doppler_tracking() const {
 	return doppler_tracking;
 }
 
+float Camera::get_shift_rotation() const{
+	return shift_rotation;
+}
+
+void Camera::set_shift_rotation(float p_rotation ) {
+	shift_rotation = p_rotation;
+}
+
+float Camera::get_shift_tilt() const{
+	return shift_tilt;
+}
+
+void Camera::set_shift_tilt(float p_tilt) {
+	shift_tilt = p_tilt;
+}
+
 void Camera::_bind_methods() {
 
 	ClassDB::bind_method(D_METHOD("project_ray_normal", "screen_point"), &Camera::project_ray_normal);
@@ -525,6 +578,7 @@ void Camera::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("is_position_behind", "world_point"), &Camera::is_position_behind);
 	ClassDB::bind_method(D_METHOD("project_position", "screen_point"), &Camera::project_position);
 	ClassDB::bind_method(D_METHOD("set_perspective", "fov", "z_near", "z_far"), &Camera::set_perspective);
+	ClassDB::bind_method(D_METHOD("set_perspective_shift", "fov", "z_near", "z_far", "shift_rotation", "shift_tilt"), &Camera::set_perspective_shift);
 	ClassDB::bind_method(D_METHOD("set_orthogonal", "size", "z_near", "z_far"), &Camera::set_orthogonal);
 	ClassDB::bind_method(D_METHOD("make_current"), &Camera::make_current);
 	ClassDB::bind_method(D_METHOD("clear_current"), &Camera::clear_current);
@@ -547,9 +601,14 @@ void Camera::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("get_keep_aspect_mode"), &Camera::get_keep_aspect_mode);
 	ClassDB::bind_method(D_METHOD("set_doppler_tracking", "mode"), &Camera::set_doppler_tracking);
 	ClassDB::bind_method(D_METHOD("get_doppler_tracking"), &Camera::get_doppler_tracking);
+	ClassDB::bind_method(D_METHOD("get_shift_rotation"), &Camera::get_shift_rotation);
+	ClassDB::bind_method(D_METHOD("set_shift_rotation"), &Camera::set_shift_rotation);
+	ClassDB::bind_method(D_METHOD("get_shift_tilt"), &Camera::get_shift_tilt);
+	ClassDB::bind_method(D_METHOD("set_shift_tilt"), &Camera::set_shift_tilt);
 	//ClassDB::bind_method(D_METHOD("_camera_make_current"),&Camera::_camera_make_current );
 
 	BIND_ENUM_CONSTANT(PROJECTION_PERSPECTIVE);
+	BIND_ENUM_CONSTANT(PROJECTION_PERSPECTIVE_SHIFT);
 	BIND_ENUM_CONSTANT(PROJECTION_ORTHOGONAL);
 
 	BIND_ENUM_CONSTANT(KEEP_WIDTH);
@@ -604,6 +663,8 @@ Vector<Plane> Camera::get_frustum() const {
 	CameraMatrix cm;
 	if (mode == PROJECTION_PERSPECTIVE)
 		cm.set_perspective(fov, viewport_size.aspect(), near, far, keep_aspect == KEEP_WIDTH);
+	else if (mode == PROJECTION_PERSPECTIVE_SHIFT)
+		cm.set_perspective_shift(fov, viewport_size.aspect(), near, far, shift_rotation, shift_tilt, keep_aspect == KEEP_WIDTH);
 	else
 		cm.set_orthogonal(size, viewport_size.aspect(), near, far, keep_aspect == KEEP_WIDTH);
 

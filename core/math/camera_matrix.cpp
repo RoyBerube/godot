@@ -129,6 +129,34 @@ void CameraMatrix::set_perspective(real_t p_fovy_degrees, real_t p_aspect, real_
 	*this = *this * cm;
 }
 
+void CameraMatrix::set_perspective_shift(real_t p_fovy_degrees, real_t p_aspect, real_t p_z_near, real_t p_z_far, real_t p_shift_rotation, real_t p_shift_tilt, bool p_flip_fov ) {
+	// shift_rotation: 0 degrees is up. Positive values spin clockwise.
+	// shift_tilt: positive degrees is in direction of shift_rotation. TODO: Do not allow to approach 90.
+	if (p_flip_fov) {
+		p_fovy_degrees = get_fovy(p_fovy_degrees, 1.0 / p_aspect);
+	}
+	real_t half_fovy = p_fovy_degrees * Math_PI / 360.0;
+	real_t rotation = Math::deg2rad(p_shift_rotation);// *Math_PI / 180.0;
+	real_t tilt_rad = Math::deg2rad(p_shift_tilt);// *Math_PI / 180.0;
+	real_t vert_tilt = Math::cos(rotation) * tilt_rad;
+	real_t horiz_tilt = Math::sin(rotation) * tilt_rad;
+	// Law of sines.
+	real_t center_vertical = Math::sin(vert_tilt) * p_z_near / Math::sin((Math_PI / 2) - vert_tilt);
+	real_t center_horiz = Math::sin(horiz_tilt) * p_z_near / Math::sin((Math_PI / 2) - horiz_tilt);
+	real_t half_height = Math::sin(half_fovy) * p_z_near / Math::sin((Math_PI / 2) - half_fovy);
+	real_t half_width = half_height * p_aspect;
+
+	set_frustum(
+		center_horiz - half_width,
+		center_horiz + half_width,
+		center_vertical - half_height,
+		center_vertical + half_height,
+		p_z_near, p_z_far);
+
+}
+void CameraMatrix::set_perspective_shift(real_t p_fovy_degrees, real_t p_aspect, real_t p_z_near, real_t p_z_far, bool p_flip_fov, int p_eye, real_t p_intraocular_dist, real_t p_convergence_dist) {
+//TODO change signature and code it. STUB.
+}
 void CameraMatrix::set_for_hmd(int p_eye, real_t p_aspect, real_t p_intraocular_dist, real_t p_display_width, real_t p_display_to_lens, real_t p_oversample, real_t p_z_near, real_t p_z_far) {
 	// we first calculate our base frustum on our values without taking our lens magnification into account.
 	real_t f1 = (p_intraocular_dist * 0.5) / p_display_to_lens;

@@ -323,6 +323,7 @@ public:
 
 	FUNCRID(camera)
 	FUNC4(camera_set_perspective, RID, float, float, float)
+	FUNC6(camera_set_perspective_shift, RID, float, float, float, float, float)
 	FUNC4(camera_set_orthogonal, RID, float, float, float)
 	FUNC2(camera_set_transform, RID, const Transform &)
 	FUNC2(camera_set_cull_mask, RID, uint32_t)

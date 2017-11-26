@@ -395,6 +395,7 @@ public:
 
 	BIND0R(RID, camera_create)
 	BIND4(camera_set_perspective, RID, float, float, float)
+	BIND6(camera_set_perspective_shift, RID, float, float, float, float, float)
 	BIND4(camera_set_orthogonal, RID, float, float, float)
 	BIND2(camera_set_transform, RID, const Transform &)
 	BIND2(camera_set_cull_mask, RID, uint32_t)

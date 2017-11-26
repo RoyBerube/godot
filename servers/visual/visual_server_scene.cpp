@@ -49,6 +49,18 @@ void VisualServerScene::camera_set_perspective(RID p_camera, float p_fovy_degree
 	camera->zfar = p_z_far;
 }
 
+void VisualServerScene::camera_set_perspective_shift(RID p_camera, float p_fovy_degrees, float p_z_near, float p_z_far, float p_shift_rotation, float p_shift_tilt) {
+
+	Camera *camera = camera_owner.get(p_camera);
+	ERR_FAIL_COND(!camera);
+	camera->type = Camera::PERSPECTIVE_SHIFT;
+	camera->fov = p_fovy_degrees;
+	camera->znear = p_z_near;
+	camera->zfar = p_z_far;
+	camera->shift_rotation = p_shift_rotation;
+	camera->shift_tilt = p_shift_tilt;
+}
+
 void VisualServerScene::camera_set_orthogonal(RID p_camera, float p_size, float p_z_near, float p_z_far) {
 
 	Camera *camera = camera_owner.get(p_camera);
@@ -1337,6 +1349,19 @@ void VisualServerScene::render_camera(RID p_camera, RID p_scenario, Size2 p_view
 					);
 			ortho = false;
 
+		} break;
+		case Camera::PERSPECTIVE_SHIFT: {
+			camera_matrix.set_perspective_shift(
+					camera->fov,
+					p_viewport_size.width / (float)p_viewport_size.height,
+					camera->znear,
+					camera->zfar,					
+					camera->shift_rotation,
+					camera->shift_tilt,
+					camera->vaspect
+				
+					);
+			ortho = false;
 		} break;
 	}
 
